@@ -1,0 +1,7 @@
+voice_recognition_tool/
+│
+├── main.py
+├── audio_processing.py
+├── database.py
+├── database_setup.py  # New file for setting up the SQLite database
+└── requirements.txt
