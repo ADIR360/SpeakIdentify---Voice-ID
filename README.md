@@ -1,8 +1,6 @@
 # Voice Identification Tool
 
 **This project is very much incomplete!**
-
-<div align="center">
   
 ## Overview
 
