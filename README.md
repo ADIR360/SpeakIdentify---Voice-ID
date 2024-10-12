@@ -1,7 +1,9 @@
 # Voice Identification Tool
 
 **This project is very much incomplete!**
-
+<div id="header" align="center">
+  <img src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExZXl2c2EzYjM4Yjg3a2h2dGhpZGh5ejN1YmFlZ3dsemp3MmF4dHE4ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/FWcoE5AkG3BRe/giphy.gif" width="100vh"/> </div>
+<div align="center">
 ## Overview
 
 The Voice Identification Tool is a forensic application designed to recognize and analyze voice patterns. By leveraging audio processing libraries, this tool can identify speakers based on pre-recorded voice samples. This project aims to create a reliable method for identifying individuals using their unique voice characteristics.
