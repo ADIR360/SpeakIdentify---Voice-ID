@@ -2,9 +2,9 @@
 
 **This project is very much incomplete!**
 
-<div id="header" align="center">
-  <img src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExa24zMG0yc3Q4bTd0OGUwNGY1MGJnbWN6MDB6bnpweWZ6aHZnb3p6YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26gsaafwvzDkN7wJ2/giphy.gif" width="100vh"/> 
-</div>
+<div align="center">
+  <img src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExa24zMG0yc3Q4bTd0OGUwNGY1MGJnbWN6MDB6bnpweWZ6aHZnb3p6YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26gsaafwvzDkN7wJ2/giphy.gif" style="width: 100%; max-width: 600px; height: auto;" /> 
+</div>>
 
 <div align="center">
   
