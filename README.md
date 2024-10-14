@@ -1,7 +1,7 @@
 # Voice Identification Tool
 
 **This project is very much incomplete!**
-** Plus Database Issue**
+**Plus Database Issue**
 **Tinker conflict**
     <div id="header" align="center">
   <img src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHBxb2tncms0ODFya3VuZXQ3ZXhwOGIwNDN2bWNuanBlZW1pYjl2MSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bTzFnjHPuVvva/giphy.gif" width="100vh"/> </div>
