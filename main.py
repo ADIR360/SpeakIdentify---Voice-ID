@@ -8,6 +8,11 @@ matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import filedialog
+from tkinter import ttk
+import collections
+import threading
+import time
+import sounddevice as sd
 import database
 
 
@@ -94,6 +99,23 @@ class VoiceIDApp:
         menubar.add_cascade(label="File", menu=filemenu)
         menubar.add_cascade(label="Manage", menu=manage_menu)
         self.root.config(menu=menubar)
+
+        # Live monitor controls
+        live = tk.LabelFrame(root, text="Live Monitor", padx=8, pady=8)
+        live.pack(fill=tk.X, expand=False, padx=12, pady=(0, 12))
+        tk.Button(live, text="Start Live Monitor", command=self.start_live_monitor).pack(side=tk.LEFT)
+        tk.Button(live, text="Stop Live Monitor", command=self.stop_live_monitor).pack(side=tk.LEFT, padx=(8, 0))
+        tk.Label(live, text="VU:").pack(side=tk.LEFT, padx=(12, 4))
+        self.vu_var = tk.DoubleVar(value=0.0)
+        self.vu_bar = ttk.Progressbar(live, orient=tk.HORIZONTAL, length=200, mode='determinate', maximum=100.0, variable=self.vu_var)
+        self.vu_bar.pack(side=tk.LEFT)
+
+        # Live stream state
+        self._stream = None
+        self._stream_buffer = collections.deque(maxlen=ap.DEFAULT_SAMPLE_RATE * 3)  # last 3s
+        self._stream_lock = threading.Lock()
+        self._live_after_id = None
+        self._running_live = False
 
     def open_record_window(self):
         self.record_window = tk.Toplevel(self.root)
@@ -300,6 +322,78 @@ class VoiceIDApp:
             self.status_label.config(text=f"Auto-calibrated threshold: {new_t:.2f}", fg="#2e7d32")
         except Exception as e:
             self.status_label.config(text=f"Calibration error: {e}", fg="#c62828")
+
+    # ===== Live streaming monitor =====
+    def _audio_callback(self, indata, frames, time_info, status):
+        if status:
+            # Non-fatal; could log status
+            pass
+        data = indata[:, 0].copy()
+        with self._stream_lock:
+            self._stream_buffer.extend(data)
+        # Update VU based on RMS of this block
+        rms = float(np.sqrt(np.mean(np.square(data)) + 1e-12))
+        # Map to 0..100 (simple linear mapping)
+        vu = max(0.0, min(100.0, rms * 4000.0))
+        # Tk variables should be set in main thread; schedule via after
+        self.root.after(0, lambda: self.vu_var.set(vu))
+
+    def start_live_monitor(self):
+        if self._running_live:
+            return
+        try:
+            self._stream_buffer.clear()
+            self._running_live = True
+            self._stream = sd.InputStream(
+                samplerate=ap.DEFAULT_SAMPLE_RATE,
+                channels=1,
+                dtype='float32',
+                blocksize=256,
+                callback=self._audio_callback,
+            )
+            self._stream.start()
+            # Kick off periodic plot updates
+            self._schedule_live_update()
+            self.status_label.config(text="Live monitor: running", fg="#2e7d32")
+        except Exception as e:
+            self._running_live = False
+            self.status_label.config(text=f"Live monitor error: {e}", fg="#c62828")
+
+    def stop_live_monitor(self):
+        self._running_live = False
+        try:
+            if self._stream is not None:
+                self._stream.stop()
+                self._stream.close()
+        finally:
+            self._stream = None
+        if self._live_after_id is not None:
+            try:
+                self.root.after_cancel(self._live_after_id)
+            except Exception:
+                pass
+            self._live_after_id = None
+        self.status_label.config(text="Live monitor: stopped", fg="#ef6c00")
+
+    def _schedule_live_update(self):
+        # Update pitch plot every 100 ms using last ~2s of audio
+        if not self._running_live:
+            return
+        try:
+            with self._stream_lock:
+                if len(self._stream_buffer) == 0:
+                    data = None
+                else:
+                    buf = np.array(self._stream_buffer, dtype=np.float32)
+                    # take last 2 seconds for pitch
+                    n_last = ap.DEFAULT_SAMPLE_RATE * 2
+                    data = buf[-n_last:]
+            if data is not None and data.size > 256:
+                self.update_pitch_plot(data)
+        except Exception as e:
+            self.status_label.config(text=f"Live update error: {e}", fg="#c62828")
+        finally:
+            self._live_after_id = self.root.after(100, self._schedule_live_update)
 
 
 if __name__ == "__main__":
