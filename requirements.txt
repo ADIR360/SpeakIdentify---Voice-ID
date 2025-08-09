@@ -2,3 +2,5 @@ numpy
 sounddevice
 librosa
 scikit-learn
+matplotlib
+scipy

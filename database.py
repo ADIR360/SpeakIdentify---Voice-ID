@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -40,6 +40,19 @@ def create_database() -> None:
             name TEXT NOT NULL,
             pattern BLOB NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        '''
+    )
+    # Table to accumulate per-user acoustic statistics for voice conversion / visualization
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS UserStats (
+            name TEXT PRIMARY KEY,
+            mean_f0_sum REAL DEFAULT 0.0,
+            mean_f0_count INTEGER DEFAULT 0,
+            mfcc_mean_sum BLOB,
+            mfcc_dim INTEGER DEFAULT 0,
+            mfcc_count INTEGER DEFAULT 0
         )
         '''
     )
@@ -188,6 +201,105 @@ def load_database() -> Dict[str, np.ndarray]:
 
     conn.close()
     return voice_db
+
+
+def update_user_stats(name: str, mean_f0: Optional[float], mfcc_mean: Optional[np.ndarray]) -> None:
+    """Update per-user acoustic statistics by adding a new observation.
+
+    - mean_f0: average F0 (Hz) for a clip (None to skip)
+    - mfcc_mean: 1D np.ndarray of mean MFCCs for a clip (None to skip)
+    Accumulates running sums and counts to allow robust averaging.
+    """
+    conn = _ensure_connection()
+    cursor = conn.cursor()
+    # Ensure row exists
+    cursor.execute('SELECT name FROM UserStats WHERE name = ?', (name,))
+    exists = cursor.fetchone() is not None
+    if not exists:
+        cursor.execute('INSERT OR IGNORE INTO UserStats (name, mean_f0_sum, mean_f0_count, mfcc_mean_sum, mfcc_dim, mfcc_count) VALUES (?, 0.0, 0, ?, ?, 0)',
+                       (name, (mfcc_mean.astype(np.float32).tobytes() if mfcc_mean is not None else None), (int(mfcc_mean.size) if mfcc_mean is not None else 0)))
+
+    # Update mean_f0
+    if mean_f0 is not None:
+        cursor.execute('UPDATE UserStats SET mean_f0_sum = COALESCE(mean_f0_sum, 0.0) + ?, mean_f0_count = COALESCE(mean_f0_count, 0) + 1 WHERE name = ?',
+                       (float(mean_f0), name))
+
+    # Update MFCC sum and dim/count
+    if mfcc_mean is not None:
+        mfcc_mean = np.asarray(mfcc_mean, dtype=np.float32)
+        # Read existing sum and dim
+        cursor.execute('SELECT mfcc_mean_sum, mfcc_dim, mfcc_count FROM UserStats WHERE name = ?', (name,))
+        row = cursor.fetchone()
+        if row is not None:
+            blob, dim, count = row
+            if blob is None or dim is None or dim == 0:
+                new_sum = mfcc_mean
+                new_dim = int(mfcc_mean.size)
+                new_count = 1
+            else:
+                try:
+                    cur_sum = np.frombuffer(blob, dtype=np.float32)
+                except Exception:
+                    cur_sum = np.zeros_like(mfcc_mean, dtype=np.float32)
+                    dim = mfcc_mean.size
+                if int(dim) != int(mfcc_mean.size):
+                    # Reset if dimension changed
+                    new_sum = mfcc_mean
+                    new_dim = int(mfcc_mean.size)
+                    new_count = 1
+                else:
+                    new_sum = (cur_sum + mfcc_mean).astype(np.float32, copy=False)
+                    new_dim = int(dim)
+                    new_count = int(count or 0) + 1
+            cursor.execute('UPDATE UserStats SET mfcc_mean_sum = ?, mfcc_dim = ?, mfcc_count = ? WHERE name = ?',
+                           (new_sum.tobytes(), new_dim, new_count, name))
+    conn.commit()
+    conn.close()
+
+
+def get_user_stats(name: str) -> Optional[Tuple[Optional[float], Optional[np.ndarray]]]:
+    """Return (mean_f0_avg, mfcc_mean_avg) for a user if available, else None.
+
+    - mean_f0_avg: float or None if no F0 data
+    - mfcc_mean_avg: np.ndarray[float32] of shape (mfcc_dim,) or None
+    """
+    conn = _ensure_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT mean_f0_sum, mean_f0_count, mfcc_mean_sum, mfcc_dim, mfcc_count FROM UserStats WHERE name = ?', (name,))
+    row = cursor.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    f0_sum, f0_count, mfcc_blob, mfcc_dim, mfcc_count = row
+    mean_f0_avg: Optional[float] = None
+    if f0_count and f0_count > 0:
+        mean_f0_avg = float(f0_sum) / float(f0_count)
+    mfcc_mean_avg: Optional[np.ndarray] = None
+    if mfcc_blob is not None and mfcc_dim and mfcc_count and mfcc_count > 0:
+        arr = np.frombuffer(mfcc_blob, dtype=np.float32)
+        # It's the running sum; average it
+        mfcc_mean_avg = (arr / float(mfcc_count)).astype(np.float32, copy=False)
+    return (mean_f0_avg, mfcc_mean_avg)
+
+
+def get_all_user_stats() -> Dict[str, Tuple[Optional[float], Optional[np.ndarray]]]:
+    """Return a mapping name -> (mean_f0_avg, mfcc_mean_avg) for all users with any stats."""
+    conn = _ensure_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT name, mean_f0_sum, mean_f0_count, mfcc_mean_sum, mfcc_dim, mfcc_count FROM UserStats')
+    rows = cursor.fetchall()
+    conn.close()
+    result: Dict[str, Tuple[Optional[float], Optional[np.ndarray]]] = {}
+    for name, f0_sum, f0_count, mfcc_blob, mfcc_dim, mfcc_count in rows:
+        mean_f0_avg: Optional[float] = None
+        if f0_count and f0_count > 0:
+            mean_f0_avg = float(f0_sum) / float(f0_count)
+        mfcc_mean_avg: Optional[np.ndarray] = None
+        if mfcc_blob is not None and mfcc_dim and mfcc_count and mfcc_count > 0:
+            arr = np.frombuffer(mfcc_blob, dtype=np.float32)
+            mfcc_mean_avg = (arr / float(mfcc_count)).astype(np.float32, copy=False)
+        result[name] = (mean_f0_avg, mfcc_mean_avg)
+    return result
 
 
 def list_users() -> list:

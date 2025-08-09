@@ -1,7 +1,7 @@
 # SpeakIdentify — Voice ID
 
 ## Overview
-SpeakIdentify is a local, privacy-friendly voice identification tool. It records short utterances, extracts compact embeddings, and matches them to enrolled users. It now includes threshold control, multi-sample enrollment, pitch and match visualizations, file import for public voices, and a basic AI-likelihood heuristic.
+SpeakIdentify is a local, privacy-friendly voice identification tool. It records short utterances, extracts compact embeddings, and matches them to enrolled users. It now includes threshold control, multi-sample enrollment, pitch, spectrogram and match visualizations, file/dataset import for public voices, a lightweight voice emulator, hover tooltips, and a basic AI-likelihood heuristic.
 
 ## File Structure
 ```
@@ -20,6 +20,8 @@ SpeakIdentify---Voice-ID/
 - Matching: cosine similarity on L2-normalized embeddings with a user-controlled threshold.
 - Multi-sample enrollment: each recording is stored; centroids are computed at load for robustness.
 - Pitch tracking: YIN-based F0 estimate plotted vs time.
+- Spectrogram: 64-bin mel-spectrogram (dB) for live/recorded audio.
+- Voice conversion (lightweight): mean-F0 alignment via pitch-shift and subtle spectral tilt using MFCC differences.
 - AI-likelihood heuristic: combination of spectral flatness and pitch variability as a simple check.
 
 ## Data Flow
@@ -43,9 +45,11 @@ SpeakIdentify---Voice-ID/
 
 ## UI Features
 - Threshold slider (0.10–0.95) and presets (Lenient/Balanced/Strict) + auto-calibration.
-- Pitch (F0) plot after capture and analysis.
-- Top-5 matches chart with cosine scores.
+- Pitch (F0) plot and mel spectrogram after capture/analysis and in live monitor.
+- Top-5 matches chart with cosine scores; hover any bar to see precise value + meaning.
 - Import audio files (WAV/MP3/FLAC/M4A) to enroll public figures.
+- Import dataset folder: either flat folder (one person) or subfolders per person.
+- Voice Emulator: record yourself and convert towards a selected target user.
 - User management: list, delete, rename.
 
 ## Running
@@ -62,7 +66,7 @@ python main.py
 ## Roadmap
 - Streaming capture with rolling pitch/VU plot
 - Phrase verification (text-dependent) and calibration tools
-- ECAPA-TDNN/x-vector embeddings
+- ECAPA-TDNN/x-vector embeddings and neural voice conversion backends
 - Robust anti-spoofing and liveness detection
 - Export/import profiles and audit logs
 
