@@ -1,87 +1,70 @@
-# Voice Identification Tool
+# SpeakIdentify — Voice ID
 
-**This project is very much incomplete!**
-**Plus Database Issue**
-**Tinker conflict**
-    <div id="header" align="center">
-  <img src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHBxb2tncms0ODFya3VuZXQ3ZXhwOGIwNDN2bWNuanBlZW1pYjl2MSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bTzFnjHPuVvva/giphy.gif" width="100vh"/> </div>
 ## Overview
+SpeakIdentify is a local, privacy-friendly voice identification tool. It records short utterances, extracts compact embeddings, and matches them to enrolled users. It now includes threshold control, multi-sample enrollment, pitch and match visualizations, file import for public voices, and a basic AI-likelihood heuristic.
 
-The Voice Identification Tool is a forensic application designed to recognize and analyze voice patterns. By leveraging audio processing libraries, this tool can identify speakers based on pre-recorded voice samples. This project aims to create a reliable method for identifying individuals using their unique voice characteristics.
+## File Structure
+```
+SpeakIdentify---Voice-ID/
+  main.py               # Tkinter UI: controls, visualizations, user management
+  audio_processing.py   # Recording, MFCC+CMVN features, cosine matching, pitch, AI heuristic
+  database.py           # SQLite schema, migration, multi-sample storage, CRUD helpers
+  database_setup.py     # Minimal DB bootstrap (aligned with `name` schema)
+  requirements.txt      # Runtime dependencies
+  README.md             # This document
+  voice_patterns.db     # SQLite database (generated)
+```
 
-## Features
+## Key Algorithms
+- Feature extraction: MFCC (13 dims) with CMVN and mean pooling to a (13,) embedding.
+- Matching: cosine similarity on L2-normalized embeddings with a user-controlled threshold.
+- Multi-sample enrollment: each recording is stored; centroids are computed at load for robustness.
+- Pitch tracking: YIN-based F0 estimate plotted vs time.
+- AI-likelihood heuristic: combination of spectral flatness and pitch variability as a simple check.
 
-- **Voice Recording**: Users can record their voice patterns and save them directly to a database.
-- **Voice Analysis**: The tool analyzes recorded audio to identify the speaker based on their voice pattern.
-- **Multi-Window User Interface**: The application provides a user-friendly interface, allowing users to seamlessly navigate between recording and analyzing functionalities.
-- **Audio Processing**: Utilizes libraries like `librosa` for audio analysis and feature extraction.
-- **Database Management**: The application can save and retrieve voice patterns from a SQLite database.
-- **Future Enhancements**:
-  - A more polished and responsive user interface.
-  - An intuitive way to access and manage voice recordings.
-  - Enhanced voice pattern analysis algorithms for improved accuracy.
+## Data Flow
+1) Enroll (Record/Import)
+   - Capture audio at 16 kHz → MFCC+CMVN → 13-dim embedding
+   - Store embedding in `VoiceSamples` (append) and upsert in `VoicePatterns`
+   - Reload in-memory DB using centroids for each user
+2) Analyze
+   - Capture audio → embedding → cosine similarity vs centroids
+   - Apply threshold → report best match or unknown
+   - Visualize pitch curve and top-5 matches
 
-## How It Works
+## Database
+- Tables
+  - VoicePatterns(id, name, pattern)
+  - VoiceSamples(id, name, pattern, created_at)
+- Migrations
+  - Legacy `letter` column is migrated to `name` automatically
+- Helpers
+  - `save_voice_pattern`, `load_database`, `list_users`, `delete_user`, `rename_user`
 
-The Voice Identification Tool operates in the following manner:
+## UI Features
+- Threshold slider (0.10–0.95) and presets (Lenient/Balanced/Strict) + auto-calibration.
+- Pitch (F0) plot after capture and analysis.
+- Top-5 matches chart with cosine scores.
+- Import audio files (WAV/MP3/FLAC/M4A) to enroll public figures.
+- User management: list, delete, rename.
 
-1. **Voice Recording**: 
-   - The user initiates the recording process by selecting the "Record Voice to Database" option.
-   - The application prompts the user to speak a specific letter or phrase.
-   - The recorded audio is processed to extract voice features.
+## Running
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
 
-2. **Feature Extraction**:
-   - The application uses the `librosa` library to analyze the recorded audio.
-   - Mel-frequency cepstral coefficients (MFCCs) are computed from the audio data to capture the unique characteristics of the voice.
-   - These features are saved in a database alongside the corresponding identifier (e.g., letter or name).
+## Notes on Anti-Spoofing
+- Included AI-likelihood is a heuristic only. For production-grade spoofing detection, integrate a trained model (e.g., speechbrain/ASVspoof) with PyTorch.
 
-3. **Voice Analysis**:
-   - The user selects the "Analyze Voice" option to identify a speaker.
-   - The application records new audio input and extracts its features.
-   - Using the features stored in the database, the application compares the new input against the existing voice patterns.
-   - The tool identifies the speaker by finding the closest match based on voice patterns.
+## Roadmap
+- Streaming capture with rolling pitch/VU plot
+- Phrase verification (text-dependent) and calibration tools
+- ECAPA-TDNN/x-vector embeddings
+- Robust anti-spoofing and liveness detection
+- Export/import profiles and audit logs
 
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.x
-- Required Python libraries listed in `requirements.txt`.
-
-### Installation
-
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/yourusername/Voice-Identification-Tool.git
-   cd Voice-Identification-Tool
-
-2. Create a virtual environment:
-
-   ```bash
-   python3 -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-
-
-3. Install required libraries:
-   ```bash
-      pip install -r requirements.txt
-4. Run the application:
-   ```bash
-   python3 main.py
-### Contributing
-Contributions are welcome! If you have suggestions for improvements or features, feel free to open an issue or submit a pull request.
-
-### License
-This project is licensed under the MIT License
-
-### Explanation of Sections
-
-1. **Overview**: Provides a brief introduction to the project, highlighting its purpose and goals.
-2. **Features**: Lists the current functionalities and future enhancements you plan to implement.
-3. **How It Works**: Describes the process of recording, extracting features, and analyzing voices in detail.
-4. **Setup Instructions**: Guides users through the setup and installation process for the project.
-5. **Contributing**: Encourages contributions and explains how others can help improve the project.
-6. **License**: Mentions the licensing terms of the project.
-
-Feel free to modify any part of the README to better fit your project's needs!
+## License
+MIT
