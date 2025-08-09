@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/meetadubey120/Desktop/SpeakIdentify - Voice ID /venv/bin/python3.12" "$0" "$@"
-' '''
+#!/Users/meetadubey120/Desktop/SpeakIdentify---Voice-ID/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
